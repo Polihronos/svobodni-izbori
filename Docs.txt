@@ -1,0 +1,5 @@
+https://console.cloud.google.com/auth/clients/828396175682-2g2rorfdcnmfsm44osk6o13bbhp9ria0.apps.googleusercontent.com?inv=1&invt=Ab5qaA&project=craftsyo-auth
+
+https://supabase.com/dashboard/project/ewndpizbyqiiukrlmaak/auth/providers?provider=Google
+
+https://supabase.com/docs/guides/auth/architecture
