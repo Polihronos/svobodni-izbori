@@ -33,13 +33,16 @@
 
 <!-- Navbar -->
 <div class="navbar bg-base-100 shadow-md">
+	<div class="flex-1 px-4">
+		<span class="font-bold text-lg">Честни избори</span>
+	</div>
 	
 	<div class=" flex items-center ml-auto gap-3 px-4">
 		{#if session}
-			<span class="text-sm text-base-content">{session.user.email}</span>
-			<button class="btn btn-m btn-outline" onclick={signOut}>Излез от профила</button>
+			<span class="text-sm text-base-content">Здравей, {session.user.email}</span>
+			<button class="btn btn-m btn-outline" onclick={signOut}>Изход</button>
 		{:else}
-			<button class="btn btn-m btn-primary" onclick={goToAuth}>Влез в профила</button>
+			<button class="btn btn-m btn-primary" onclick={goToAuth}>Вход</button>
 		{/if}
 	</div>
 </div>
