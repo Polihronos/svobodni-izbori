@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { supabase } from '$lib/supabaseClient';
-
-
+	import { enhance } from '$app/forms';
+	import type { SubmitFunction } from '@sveltejs/kit';
 
 	const props: {
 		sectionId: string;
@@ -16,6 +15,8 @@
 	let violations: Record<number, boolean> = $state({});
 	let otherViolation: string = $state('');
 	let submitting: boolean = $state(false);
+	let errorMessage: string = $state('');
+	let successMessage: string = $state('');
 
 	const standardViolations = [
 		'Липсва видеозапис на преброяването',
@@ -36,47 +37,41 @@
 		'Влизат или излизат хора от секцията по време на броенето'
 	];
 
-	async function submitReport() {
+	const handleSubmit: SubmitFunction = () => {
 		submitting = true;
+		errorMessage = '';
+		successMessage = '';
 
-		const selectedViolations = Object.entries(violations)
-			.filter(([_, v]) => v)
-			.map(([index]) => standardViolations[+index]);
+		return async ({ result, update }) => {
+			submitting = false;
 
-		const payload = {
-			sectionId: props.sectionId,
-			regionName: props.regionName,
-			town: props.town,
-			sectionAddress: props.sectionAddress,
-			selectedViolations,
-			otherViolation,
-			createdAt: new Date().toISOString()
+			if (result.type === 'success') {
+				successMessage = result.data?.message || 'Докладът беше изпратен успешно!';
+				// Reset form
+				violations = {};
+				otherViolation = '';
+				// Call the callback after a short delay to show success message
+				setTimeout(() => {
+					props.onSubmitted?.({
+						sectionId: props.sectionId,
+						regionName: props.regionName,
+						town: props.town,
+						sectionAddress: props.sectionAddress
+					});
+				}, 1500);
+			} else if (result.type === 'failure') {
+				errorMessage = result.data?.error || 'Възникна грешка при изпращането';
+			}
+
+			await update();
 		};
-
-		const {
-			data: { user }
-		} = await supabase.auth.getUser();
-
-		const { error } = await supabase.from('violations').insert({
-			section_id: props.sectionId,
-			region_name: props.regionName,
-			town: props.town,
-			section_address: props.sectionAddress,
-			selected_violations: selectedViolations,
-			other_violation: otherViolation,
-			reported_by: user?.id, 
-			created_at: new Date().toISOString()
-		});
-
-		submitting = false;
-
-		if (!error) props.onSubmitted?.(payload);
-		else alert('Грешка при изпращане. Опитайте пак.');
-	}
+	};
 
 	function cancel() {
 		props.onCancel?.();
 	}
+	
+
 </script>
 
 <div class="mx-auto max-w-md space-y-4 rounded-lg border bg-base-100 p-4 shadow">
@@ -89,35 +84,56 @@
 		</a>
 	{/if}
 
-	<div class="space-y-2">
-		<p class="font-semibold">Изберете нарушения:</p>
-		{#each standardViolations as violation, i}
-			<label class="flex cursor-pointer items-center space-x-2" for={`violation-${i}`}>
-				<input
-					type="checkbox"
-					id={`violation-${i}`}
-					bind:checked={violations[i]}
-					class="checkbox"
-				/>
-				<span class="text-sm">{violation}</span>
-			</label>
-		{/each}
-	</div>
+	{#if errorMessage}
+		<div class="alert alert-error">
+			<span>{errorMessage}</span>
+		</div>
+	{/if}
 
-	<div class="flex flex-col space-y-2">
-		<label class="text-sm font-semibold" for="otherViolation">Други нарушения:</label>
-		<textarea
-			id="otherViolation"
-			bind:value={otherViolation}
-			placeholder="Опишете други нарушения..."
-			class="textarea-bordered textarea w-full"
-		></textarea>
-	</div>
+	{#if successMessage}
+		<div class="alert alert-success">
+			<span>{successMessage}</span>
+		</div>
+	{/if}
 
-	<div class="flex justify-end space-x-2">
-		<button class="btn btn-ghost" onclick={cancel} type="button">Отказ</button>
-		<button class="btn btn-primary" onclick={submitReport} disabled={submitting} type="button">
-			{submitting ? 'Изпращане...' : 'Изпрати доклад'}
-		</button>
-	</div>
+	<form method="POST" action="?/submitReport" use:enhance={handleSubmit}>
+		<!-- Hidden fields for section data -->
+		<input type="hidden" name="regionName" value={props.regionName} />
+		<input type="hidden" name="town" value={props.town} />
+		<input type="hidden" name="sectionAddress" value={props.sectionAddress} />
+
+		<div class="space-y-2">
+			<p class="font-semibold">Изберете нарушения:</p>
+			{#each standardViolations as violation, i}
+				<label class="flex cursor-pointer items-center space-x-2" for={`violation-${i}`}>
+					<input
+						type="checkbox"
+						id={`violation-${i}`}
+						name={`violation-${i}`}
+						bind:checked={violations[i]}
+						class="checkbox"
+					/>
+					<span class="text-sm">{violation}</span>
+				</label>
+			{/each}
+		</div>
+
+		<div class="flex flex-col space-y-2">
+			<label class="text-sm font-semibold" for="otherViolation">Други нарушения:</label>
+			<textarea
+				id="otherViolation"
+				name="otherViolation"
+				bind:value={otherViolation}
+				placeholder="Опишете други нарушения..."
+				class="textarea-bordered textarea w-full"
+			></textarea>
+		</div>
+
+		<div class="flex justify-end space-x-2 mt-2">
+			<button class="btn btn-ghost" onclick={cancel} type="button">Отказ</button>
+			<button class="btn btn-primary" type="submit" disabled={submitting}>
+				{submitting ? 'Изпращане...' : 'Изпрати доклад'}
+			</button>
+		</div>
+	</form>
 </div>

@@ -1,17 +1,19 @@
 <script lang="ts">
 	import ReportViolation from '$lib/assets/ReportViolation.svelte';
-  console.log('PAGE +page.svelte executing');
-  console.log('PUBLIC_SUPABASE_URL:', import.meta.env.PUBLIC_SUPABASE_URL);
-  console.log('PUBLIC_SUPABASE_ANON_KEY:', import.meta.env.PUBLIC_SUPABASE_ANON_KEY);
-    
+	import ViolationsList from '$lib/assets/ViolationsList.svelte';
+
 	export let data: {
 		section: any;
 		regionName: string;
 		town: string;
+		id: string;
+		session: any;
+		user: any;
+		existingReports: any[];
 	};
 
 	let markedClean = 0;
-	let reportedViolation = 0;
+	let reportedViolation = data.existingReports?.length || 0;
 	let userAction: 'clean' | 'violation' | null = null;
 
 	let showViolationForm = false;
@@ -24,6 +26,10 @@
 	}
 
 	function openViolationForm() {
+		if (!data.session) {
+			alert('Трябва да сте влезли в профила си за да докладвате нарушения');
+			return;
+		}
 		showViolationForm = true;
 	}
 
@@ -35,7 +41,13 @@
 		reportedViolation++;
 		userAction = 'violation';
 		showViolationForm = false;
+		// Refresh the page to show updated reports
+		window.location.reload();
 	}
+
+	console.log('🎯 Component data.existingReports:', data.existingReports);
+console.log('🔢 Calculated reportedViolation:', data.existingReports?.length || 0);
+
 </script>
 
 <div class="mx-auto max-w-md space-y-4 p-4">
@@ -67,7 +79,7 @@
 				onclick={openViolationForm}
 				disabled={userAction === 'violation'}
 			>
-				Докладвай нарушение ( не работи )
+				Докладвай нарушение 
 			</button>
 		</div>
 
@@ -88,4 +100,7 @@
 			onCancel={closeViolationForm}
 		/>
 	{/if}
+
+	<!-- Display existing violations -->
+	<ViolationsList violations={data.existingReports} />
 </div>
