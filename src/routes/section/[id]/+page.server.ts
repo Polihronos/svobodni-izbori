@@ -1,74 +1,44 @@
 import type { PageServerLoad, Actions } from './$types';
-import { regions } from '$lib/data/regions';
-import { fail, redirect } from '@sveltejs/kit';
+import { fail } from '@sveltejs/kit';
 
 export const load: PageServerLoad = async ({ params, locals: { safeGetSession, supabase } }) => {
   const id = params.id;
 
-  let section: any = null;
-  let regionName = '';
-  let town = '';
+  const { error: rpcError } = await supabase.rpc('increment_view_count', { section_id_param: id });
 
-  // Find the section in the regions data
-  for (const region of regions) {
-    const sec = region.sections?.[id];
-    if (sec) {
-      section = sec;
-      regionName = region.name;
-      town = sec.town;
-      break;
-    }
+  if (rpcError) {
+    
+    console.error(`Error incrementing view count for section ${id}:`, rpcError);
   }
 
-  if (!section) {
+  const { data: sectionData, error: sectionError } = await supabase
+    .from('sections')
+    .select(`
+      *,
+      violations ( * ),
+      clean_sections ( * )
+    `)
+    .eq('id', id)
+    .single();
+
+  if (sectionError || !sectionData) {
     throw new Error('Section not found');
   }
 
-  // Get session for authentication state
   const { session, user } = await safeGetSession();
-  console.log('🔍 Fetching violations for section_id:', id);
 
-  // Fetch existing violation reports for this section (available to everyone)
-  let existingReports: any[] = [];
-  const { data: reports, error } = await supabase
-    .from('violations')
-    .select(`
-      *
-    `)
-    .eq('section_id', id)
-    .order('created_at', { ascending: false });
-
-    
-    console.log('📊 Database query result:', { data: reports, error });
-console.log('📈 Number of reports found:', reports?.length || 0);
-
-
-
-  if (!error && reports) {
-    existingReports = reports;
-  } else if (error) {
-    console.error('Error fetching violations:', error);
-    // If there's an RLS error, we'll still return empty array
-    existingReports = [];
-  }
-console.log('📤 Returning existingReports:', existingReports);
-  return { 
-    section, 
-    regionName, 
-    town, 
+  return {
+    section: sectionData,
     id,
     session,
-    user,
-    existingReports
+    user
   };
-  
-
 };
 
 export const actions: Actions = {
   submitReport: async ({ request, locals: { safeGetSession, supabase }, params }) => {
     const { session, user } = await safeGetSession();
-    
+
 
     // Check if user is authenticated
     if (!session || !user) {
@@ -77,11 +47,8 @@ export const actions: Actions = {
 
     const formData = await request.formData();
     const sectionId = params.id;
-    
+
     // Extract form data
-    const regionName = formData.get('regionName') as string;
-    const town = formData.get('town') as string;
-    const sectionAddress = formData.get('sectionAddress') as string;
     const otherViolation = formData.get('otherViolation') as string || '';
 
     // Extract selected violations from checkboxes
@@ -114,44 +81,78 @@ export const actions: Actions = {
 
     // Validate that at least one violation is selected or other violation is provided
     if (selectedViolations.length === 0 && !otherViolation.trim()) {
-      return fail(400, { 
+      return fail(400, {
         error: 'Моля изберете поне едно нарушение или опишете друго нарушение',
         formData: Object.fromEntries(formData)
       });
     }
 
     try {
-      // Insert the violation report into the database
       const { error } = await supabase
         .from('violations')
         .insert({
           section_id: sectionId,
-          region_name: regionName,
-          town: town,
-          section_address: sectionAddress,
           selected_violations: selectedViolations,
           other_violation: otherViolation.trim(),
           reported_by: user.id,
-          reporter_email: user.email,
-          created_at: new Date().toISOString()
+          reporter_email: user.email
+
         });
 
       if (error) {
         console.error('Database error:', error);
-        return fail(500, { 
+        return fail(500, {
           error: 'Грешка при записване в базата данни. Моля опитайте отново.',
           formData: Object.fromEntries(formData)
         });
       }
 
+      if (!error) {
+      // If the report was successful, award points
+      await supabase.rpc('add_points', { points_to_add: 1000 });
       return { success: true, message: 'Докладът за нарушение беше изпратен успешно!' };
+    }
 
     } catch (err) {
       console.error('Unexpected error:', err);
-      return fail(500, { 
+      return fail(500, {
         error: 'Неочаквана грешка. Моля опитайте отново.',
         formData: Object.fromEntries(formData)
       });
     }
+  },
+
+
+  markAsClean: async ({ locals: { safeGetSession, supabase }, params }) => {
+    const { session, user } = await safeGetSession();
+
+    if (!session || !user) {
+      return fail(401, { error: 'Трябва да сте влезли в профила си.' });
+    }
+
+    const sectionId = params.id;
+
+    const { error } = await supabase
+      .from('clean_sections')
+      .insert({
+        section_id: sectionId,
+        reported_by: user.id,
+        reporter_email: user.email
+      });
+
+    if (error) {
+      if (error.code === '23505') { // Unique constraint violation
+        return fail(409, { error: 'Вече сте маркирали тази секция като чиста.' });
+      }
+      return fail(500, { error: 'Грешка при записване в базата данни.' });
+    }
+
+    if (!error) {
+        // If marking as clean was successful, award points
+        await supabase.rpc('add_points', { points_to_add: 1000 });
+        return { success: true, message: 'Секцията е маркирана като чиста!' };
+    }
   }
+
 };
+

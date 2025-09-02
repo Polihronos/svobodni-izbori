@@ -3,11 +3,7 @@
 	import type { SubmitFunction } from '@sveltejs/kit';
 
 	const props: {
-		sectionId: string;
-		regionName: string;
-		town: string;
-		sectionAddress: string;
-		videoUrl: string;
+		section: any; 
 		onSubmitted?: (payload: any) => void;
 		onCancel?: () => void;
 	} = $props();
@@ -52,11 +48,9 @@
 				otherViolation = '';
 				// Call the callback after a short delay to show success message
 				setTimeout(() => {
+					// Pass the whole section object back
 					props.onSubmitted?.({
-						sectionId: props.sectionId,
-						regionName: props.regionName,
-						town: props.town,
-						sectionAddress: props.sectionAddress
+						section: props.section 
 					});
 				}, 1500);
 			} else if (result.type === 'failure') {
@@ -75,11 +69,12 @@
 </script>
 
 <div class="mx-auto max-w-md space-y-4 rounded-lg border bg-base-100 p-4 shadow">
-	<h2 class="text-lg font-bold">Секция {props.sectionId}</h2>
-	<p class="text-gray-600">{props.regionName}, {props.town}, {props.sectionAddress}</p>
+	
 
-	{#if props.videoUrl}
-		<a href={props.videoUrl} target="_blank" class="text-sm text-blue-500 hover:underline">
+	<h2 class="text-lg font-bold">Секция {props.section.id}</h2>
+	<p class="text-gray-600">{props.section.region_name}, {props.section.town}, {props.section.address}</p>
+	{#if props.section.video}
+		<a href={props.section.video} target="_blank" class="text-sm text-blue-500 hover:underline">
 			🎥 Гледай видео
 		</a>
 	{/if}
@@ -97,10 +92,7 @@
 	{/if}
 
 	<form method="POST" action="?/submitReport" use:enhance={handleSubmit}>
-		<!-- Hidden fields for section data -->
-		<input type="hidden" name="regionName" value={props.regionName} />
-		<input type="hidden" name="town" value={props.town} />
-		<input type="hidden" name="sectionAddress" value={props.sectionAddress} />
+		
 
 		<div class="space-y-2">
 			<p class="font-semibold">Изберете нарушения:</p>

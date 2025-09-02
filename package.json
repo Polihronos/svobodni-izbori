@@ -39,6 +39,7 @@
 	"dependencies": {
 		"@supabase/ssr": "^0.6.1",
 		"@supabase/supabase-js": "^2.56.0",
+		"csv-parse": "^6.1.0",
 		"daisyui": "^5.0.50"
 	}
 }

@@ -69,6 +69,13 @@ const authGuard: Handle = async ({ event, resolve }) => {
   event.locals.session = session
   event.locals.user = user
 
+  if (session) {
+    // Fire-and-forget the daily bonus check. No need to wait for it.
+    event.locals.supabase.rpc('award_daily_bonus').then(({ error }) => {
+      if (error) console.error('Daily bonus check failed:', error);
+    });
+  }
+
   if (!event.locals.session && event.url.pathname.startsWith('/private')) {
     redirect(303, '/auth')
   }
